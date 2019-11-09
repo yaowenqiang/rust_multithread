@@ -1,13 +1,13 @@
 extern crate glob;
 extern crate scoped_threadpool;
 use glob::glob;
+use scoped_threadpool::Pool;
 use std::env;
+use std::fs::File;
+use std::io::BufRead;
+use std::io::BufReader;
 use std::path::Path;
 use std::result::Result;
-use std::fs::File;
-use std::io::BufReader;
-use std::io::BufRead;
-use scoped_threadpool::Pool;
 fn main() {
     let args: Vec<String> = env::args().collect();
     let max_workers = 4;
@@ -16,45 +16,40 @@ fn main() {
     }
     let files: Vec<String> = Vec::from(&args[1..]);
     let mut pool = Pool::new(max_workers);
-    pool.scoped(|scoped|  {
+    pool.scoped(|scoped| {
         for file_arg in files.iter() {
             for file_name in glob(file_arg).unwrap().filter_map(Result::ok) {
                 scoped.execute(move || {
-                    let path= Path::new(&file_name);
+                    let path = Path::new(&file_name);
                     match process_file(path) {
-                        Ok ((lines, words) ) => {
+                        Ok((lines, words)) => {
                             println!("{}\t{} lines {} words", path.display(), lines, words)
-                        },
-                        Err(err) => {
-                            panic!("Error - {}", err)
                         }
+                        Err(err) => panic!("Error - {}", err),
                     };
-
                 });
             }
         }
-
     });
-
 }
 
-fn process_file (file_path: &Path) -> Result< (i32,i32), String> {
+fn process_file(file_path: &Path) -> Result<(i32, i32), String> {
     let file_handle = match File::open(&file_path) {
         Err(why) => return Err(why.to_string()),
-        Ok(file_handle) => file_handle
+        Ok(file_handle) => file_handle,
     };
     let mut reader = BufReader::new(file_handle);
     let (lines, words) = counter(&mut reader)?;
     Ok((lines, words))
 }
 
-fn counter<R: BufRead> (reader: &mut R) -> Result<(i32, i32), String> {
+fn counter<R: BufRead>(reader: &mut R) -> Result<(i32, i32), String> {
     let mut total_lines: i32 = 0;
     let mut total_words: i32 = 0;
     let mut line = String::from("");
     loop {
-        match reader.read_line(&mut line)  {
-            Ok( _ ) => {
+        match reader.read_line(&mut line) {
+            Ok(_) => {
                 if line.len() == 0 {
                     break;
                 }
@@ -62,8 +57,8 @@ fn counter<R: BufRead> (reader: &mut R) -> Result<(i32, i32), String> {
                 total_lines += 1;
                 total_words += count_words(&line);
                 line.clear();
-            },
-            Err (why) => return Err(why.to_string())
+            }
+            Err(why) => return Err(why.to_string()),
         };
     }
 
